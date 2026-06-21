@@ -1,0 +1,28 @@
+# OpenTSC
+
+> OpenTSC 是 TSC（薄壳公司 / Thin-Shell Company）理念的"壳"——一个面向 Claude Code / Agent 的单人、本地优先人际情报系统。由 dashen（「AI 最严厉的父亲」, dashen.wang）创立。它把人对人际世界的隐性判断变成显式、可查询、可审计、会自我进化的结构化情报。它不是 CRM。
+
+核心概念：魂壳分离（Soul/Shell）。魂 = 法 + 判断与记忆，可移植可复活；壳 = 运行容器（模块/agent/技能）。
+
+关键创新：
+- 事件图谱 K3：事件是独立节点，多实体链接 + 因果边，当前状态由事件流推导。
+- 判断引擎 K7：新事件触发，依据判断法典自动推导三层属性（base/skills/states），每条属性是带 {value, confidence, provenance, decay} 的 AttributeClaim。
+- 自创生引擎 K8：检测能力缺口 → 生成 Agent → 校验 → 审批激活。
+- 11 个 VSM 职业；预测校准闭环。
+
+## 文档
+- [SKILL 入口（十二法则 / 架构 / CLI）](skill/SKILL.md)
+- [内核 K1–K8](skill/references/kernel.md)
+- [数据契约（魂壳世界 / 事件图谱 / AttributeClaim）](skill/references/data-contract.md)
+- [十二法则](skill/references/philosophy.md)
+- [模块族契约](skill/references/plugins.md)
+- [命令速查](skill/命令说明.md)
+- [新人教程](skill/新人使用教程.md)
+
+## 魂（白皮书）
+- 仓库：https://github.com/opentsc/tsc
+- 作者：dashen · https://dashen.wang · https://x.com/dashen_wang
+
+## 许可
+- 代码：AGPL-3.0 + 商业授权（双许可，见 LICENSING.md）
+- 商标：OpenTSC™ / TSC™ / 薄壳公司™（见 TRADEMARK.md）

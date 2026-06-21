@@ -1,0 +1,24 @@
+cff-version: 1.2.0
+title: "OpenTSC — 人际情报系统的运行容器（壳）"
+message: "如果你使用或引用 OpenTSC，请按此引用。"
+type: software
+authors:
+  - given-names: dashen
+    alias: "AI 最严厉的父亲"
+    website: "https://dashen.wang"
+abstract: >-
+  OpenTSC 是 TSC（薄壳公司 / Thin-Shell Company）理念的壳：一个单人、本地优先的
+  人际情报系统，含事件图谱（K3）、判断引擎（K7）、自创生引擎（K8）、三层属性、
+  校准预测与 11 个 VSM 职业，把隐性社会判断变成显式、可查询、可审计、会自我进化的结构。
+keywords:
+  - interpersonal-intelligence
+  - knowledge-graph
+  - thin-shell-company
+  - ai-agent
+  - claude-skill
+  - soul-shell-architecture
+license: AGPL-3.0-or-later
+repository-code: "https://github.com/opentsc/opentsc"
+url: "https://dashen.wang"
+version: "1.0.0"
+date-released: "2026-06-21"

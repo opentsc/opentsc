@@ -1,0 +1,37 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Run skill smoke test
+        working-directory: skill
+        run: python tests/smoke.py
+
+  pii-guard:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Guard against real instance data leaking in
+        run: |
+          # Fail the build if known private identifiers reappear in the repo.
+          if grep -rinE "wxid_|@chatroom|/documents/hermes|hermes-stanley" . \
+               --include='*.md' --include='*.py' --include='*.txt' ; then
+            echo "::error::Private instance data detected — scrub before committing."
+            exit 1
+          fi
+          echo "No private instance data found."
