@@ -1,75 +1,80 @@
 <div align="center">
 
-# OpenTSC — 壳 · 人际情报系统的运行容器
+# OpenTSC
 
-**把人对人际世界的隐性判断，变成显式、可查询、可审计、会自我进化的结构化情报系统。**
+**A private, offline memory for the people, projects, and decisions you juggle — that also keeps score of whether your judgment was right.**
 
-由 **dashen**（「AI 最严厉的父亲」）创立 · [dashen.wang](https://dashen.wang) · [@dashen_wang](https://x.com/dashen_wang)
+🌐 **English** · [中文](README.zh-CN.md)
 
-[![License: AGPL v3](https://img.shields.io/badge/code-AGPL--3.0-blue.svg)](LICENSE) · ![version](https://img.shields.io/badge/version-v2.0.0-green.svg) · [商用授权](LICENSING.md) · [魂 · 白皮书 →](https://github.com/opentsc/tsc)
+by **dashen** (「AI 最严厉的父亲」) · [dashen.wang](https://dashen.wang) · [@dashen_wang](https://x.com/dashen_wang)
 
-[更新日志](CHANGELOG.md) · [迁移 v1→v2](MIGRATION.md) · [使用说明](docs/usage.md)
+[![License: AGPL v3](https://img.shields.io/badge/code-AGPL--3.0-blue.svg)](LICENSE) · ![version](https://img.shields.io/badge/version-v2.1.0-green.svg) · [Commercial license](LICENSING.md) · [Whitepaper (the "soul") →](https://github.com/opentsc/tsc)
+
+[Changelog](CHANGELOG.md) · [Migrate v1→v2](MIGRATION.md) · [Usage guide](docs/usage.md)
 
 </div>
 
 ---
 
-> **TSC 是魂，OpenTSC 是壳。**
-> 魂（[`opentsc/tsc`](https://github.com/opentsc/tsc) 白皮书）= 一套法 + 全部判断与记忆，决定"为什么存在、什么算好"。
-> 壳（本仓）= 运行这套法的容器：模块 / agent / 技能，决定"怎么做"。
-> 软件可重写、团队可换人、模型可升级——只要魂还在，这个 TSC 就还是同一个 TSC。
+## What is this, in plain words?
 
-OpenTSC 是一个面向 Claude Code / Agent 的**单人、本地优先（local / offline-first）**人际情报系统——一间私人作战室，**不是 CRM**。
+You deal with a lot of people and moving parts. Your notes are scattered, your memory is unreliable, and you rarely check whether your gut calls actually pan out. OpenTSC fixes that:
 
-## 核心能力
+- 📝 **You jot down what happened** — "Carol delivered the quote on time", "Dave keeps stalling on the GPU order."
+- 🗂️ **It organizes everything into a searchable memory** — every fact tagged with where it came from and how trustworthy it is.
+- 💬 **You ask plain questions** — *Who reliably delivers? Have I dealt with a situation like this before? What am I still waiting on, and from whom?*
+- 🎯 **You log predictions; it later tells you your hit rate** — so your judgment actually improves over time instead of quietly drifting.
+- 🔒 **Everything stays on your own computer.** Offline-first, single-user, no cloud, no account.
 
-- **事件图谱（K3）** — 事件是独立节点，多实体链接 + 因果边，当前状态由事件流推导而非手填。
-- **判断引擎（K7，核心创新）** — 新事件到达，K7 读判断法典自动推导属性补丁；三层属性（base / skills / states），每条都是带 `{value, confidence, provenance, decay}` 的 AttributeClaim。
-- **自创生引擎（K8）** — 检测能力缺口 → 生成 Agent 草稿 → 校验法则 → 用户审批激活。
-- **11 个 VSM 职业** · **校准闭环**（预测→跟踪→命中率→法典自迭代）· **魂壳分离**（soul/ 可导出复活）。
+It is **not** a CRM (it's about judgment and operations, not storing contacts) and **not** a social network. Think of it as a **second brain for your working relationships and operations** — one that holds you accountable to reality.
 
-### v2.0 新增 — 可插拔记忆引擎 + 确定性优先
+## What can you actually do with it?
 
-- **zvec 记忆索引** — markdown 仍是真源，zvec 是可重建的派生索引：语义搜索、混合检索、`identity-resolve` 身份解析（根治 hash-ID 泛滥与名字漂移）、`index-mood`（谁情绪不好）。
-- **可插拔后端** — 向量 `lite`/`local`/`api`、情绪 `lexicon`/`model`/`llm`，在 `soul/_config.yaml` 里一行切换。
-- **核心零依赖也能跑** — 不装 jieba/snownlp/zvec 也能用（自动降级）；重型后端按需开启。
-- **CLI-first** — 该用命令的地方绝不让 LLM 重读 vault，省 token、灭漂移。详见 [`docs/usage.md`](docs/usage.md)。
+| You want to… | Plain-language ask → it runs |
+|---|---|
+| Record something that happened, with evidence | "log that Carol delivered on time" → `event-add` |
+| Find people or situations by **meaning**, not keywords | "who's reliable on delivery?" → `index-search` |
+| Avoid creating a duplicate record of the same person | "is there already a Mike?" → `identity-resolve` |
+| See what's gone stale or overdue | "what's rotting in my to-do list?" → `actions-stale` |
+| Score your own predictions over time | `stage-prediction` → `calibrate` → `accuracy` |
+| Spot patterns in your own notes | "who's been negative lately?" → `index-mood` |
 
-## 快速开始
+> Examples use placeholder names (Carol, Dave…). **OpenTSC ships with zero real data.** Use it responsibly and only on information you're allowed to hold — see [SECURITY.md](SECURITY.md).
+
+## How it works (30 seconds)
+
+OpenTSC is a **skill for AI coding agents** (Claude Code, and others) plus a **Python command-line tool**. You talk to it in plain language through your agent; it stores everything as plain Markdown files **you own**, and builds a fast, semantic search index on top.
 
 ```bash
-# 把本仓 skill/ 放到你项目的 .claude/skills/opentsc/，或直接用 CLI：
 python skill/scripts/opentsc.py --root my-vault init
-python skill/scripts/opentsc.py --root my-vault world-new-npc "Carol" --id p_carol --tag core_team
-python skill/scripts/opentsc.py --root my-vault event-add B2 "Carol 按时交付报价" "会议纪要" --link p_carol
-
-# v2.0 记忆引擎（可选依赖：pip install jieba snownlp zvec）
-python skill/scripts/opentsc.py --root my-vault index-build
-python skill/scripts/opentsc.py --root my-vault index-search "谁交付靠谱" --kind entity
-python skill/scripts/opentsc.py --root my-vault identity-resolve "Carol"
+python skill/scripts/opentsc.py --root my-vault event-add B2 "Carol delivered the quote on time" "meeting note" --link p_carol
+python skill/scripts/opentsc.py --root my-vault index-search "who is reliable" --kind entity
 ```
 
-完整命令见 [`skill/命令说明.md`](skill/命令说明.md) · 新手上路见 [`skill/新人使用教程.md`](skill/新人使用教程.md) · v2.0 用法见 [`docs/usage.md`](docs/usage.md)。
+Optional power-ups (all opt-in — the core runs with zero extra installs): Chinese word segmentation (jieba), emotion scoring (lexicon / local model / LLM), and a vector memory index (zvec). See the [usage guide](docs/usage.md).
 
-## 魂 ↔ 壳 对照（理念如何被实现）
+## Quick start
 
-| 魂（白皮书法则） | 壳（实现） |
-|---|---|
-| 存在 1–3：创世不可变 / 魂壳分离 / 按 ID 立身 | `skill/scripts/opentsc_core/soul.py`、`identity.py`（K1）|
-| 感知 4–6：事件只增 / 先证据后判断 / 先草稿后入册 | `events.py`（K3）· `references/data-contract.md` |
-| 判断 7–9：双法典 / 现实校准 / 属性来自事件 | `judgment.py`（**K7**）· `judgment_codex_seed.md` |
-| 进化 10–12：按需生长 / 四重自创生 / 递归同构 | `genesis_engine.py`（K8）· `professions.py` |
+1. Drop `skill/` into your project as `.claude/skills/opentsc/`, or call `skill/scripts/opentsc.py` directly.
+2. (Optional) `pip install jieba snownlp zvec` and copy `skill/templates/_config.yaml` to `<vault>/soul/_config.yaml` to turn on the memory engine.
+3. Read the [usage guide](docs/usage.md). Upgrading from v1.0? See [MIGRATION.md](MIGRATION.md) — your data needs no changes.
 
-## 许可证 — 双许可
+## The bigger idea (for the curious)
 
-- **社区版**：[AGPL-3.0](LICENSE)。可自由使用/修改/分发；**改动及"做成在线服务"都须开源回馈**。
-- **商业版**：需要闭源 / 商用而不想受 AGPL 约束？见 [LICENSING.md](LICENSING.md)，向 dashen 获取商业授权。
-- **品牌**：OpenTSC™ / TSC™ / 薄壳公司™ 受商标保护，见 [TRADEMARK.md](TRADEMARK.md)。
+OpenTSC is the **"shell"** of a concept called **TSC — the Thin-Shell Company**: how *one person* can run a large, self-evolving operation with AI agents. The one idea worth knowing:
 
-贡献请先读 [CONTRIBUTING.md](CONTRIBUTING.md)（含 CLA）。
+> Keep your **judgment and memory** (the "soul") separate from whatever software, team, or AI model happens to run it (the "shell") — so it survives any tool change. Export the soul, and you've exported the whole thing.
+
+The full doctrine lives in the [whitepaper / "soul" repo](https://github.com/opentsc/tsc). The mapping from each principle to the code that implements it is in [SKILL.md](skill/SKILL.md).
+
+## License
+
+- **Code**: [AGPL-3.0](LICENSE) for the community; a [commercial license](LICENSING.md) is available for closed-source use.
+- **Name & brand**: OpenTSC™ / TSC™ are trademarks — see [TRADEMARK.md](TRADEMARK.md).
+- Contributions: see [CONTRIBUTING.md](CONTRIBUTING.md) (includes a CLA).
 
 ---
 
 <div align="center">
-OpenTSC · 创始人 dashen「AI 最严厉的父亲」· <a href="https://dashen.wang">dashen.wang</a> · <a href="https://x.com/dashen_wang">@dashen_wang</a>
+OpenTSC · created by dashen「AI 最严厉的父亲」· <a href="https://dashen.wang">dashen.wang</a> · <a href="https://x.com/dashen_wang">@dashen_wang</a>
 </div>
