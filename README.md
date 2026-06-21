@@ -16,7 +16,7 @@ by **dashen** (「AI 最严厉的父亲」) · [dashen.wang](https://dashen.wang
 
 ---
 
-## What is this, in plain words?
+## What is OpenTSC?
 
 You deal with a lot of people and moving parts. Your notes are scattered, your memory is unreliable, and you rarely check whether your gut calls actually pan out. OpenTSC fixes that:
 
@@ -59,7 +59,7 @@ Optional power-ups (all opt-in — the core runs with zero extra installs): Chin
 2. (Optional) `pip install jieba snownlp zvec` and copy `skill/templates/_config.yaml` to `<vault>/soul/_config.yaml` to turn on the memory engine.
 3. Read the [usage guide](docs/usage.md). Upgrading from v1.0? See [MIGRATION.md](MIGRATION.md) — your data needs no changes.
 
-## The bigger idea (for the curious)
+## The bigger idea
 
 OpenTSC is the **"shell"** of a concept called **TSC — the Thin-Shell Company**: how *one person* can run a large, self-evolving operation with AI agents. The one idea worth knowing:
 

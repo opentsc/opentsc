@@ -16,7 +16,7 @@
 
 ---
 
-## 这到底是个啥？（说人话）
+## OpenTSC 是什么？
 
 你每天要应付一堆人和一堆事。笔记到处散、脑子记不全，而且你几乎从不回头看自己当初的判断对没对。OpenTSC 就是来补这个：
 
@@ -59,7 +59,7 @@ python skill/scripts/opentsc.py --root my-vault index-search "谁靠谱" --kind 
 2. （可选）`pip install jieba snownlp zvec`，把 `skill/templates/_config.yaml` 复制到 `<vault>/soul/_config.yaml` 开启记忆引擎。
 3. 看[使用说明](docs/usage.md)。从 v1.0 升级？看 [MIGRATION.md](MIGRATION.md)——你的数据一个字都不用改。
 
-## 背后更大的想法（有兴趣再看）
+## 背后更大的想法
 
 OpenTSC 是一个叫 **TSC（薄壳公司）** 的概念的**"壳"**：讲*一个人*怎么靠 AI agent 驱动一个大而能自我进化的组织。一句话精华：
 
