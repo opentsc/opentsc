@@ -53,6 +53,14 @@ class ZvecIndex:
         self.embedder = get_embedding_backend(self.config)
         self.dir = self.config.index_path(self.root)
         self._col = None
+        self._emotion = None  # lazily built; scoring happens at index time
+
+    def _emotion_backend(self):
+        if self._emotion is None:
+            from .emotion import get_emotion_backend
+
+            self._emotion = get_emotion_backend(self.config)
+        return self._emotion
 
     # -- availability / lifecycle ------------------------------------------
 
@@ -100,6 +108,8 @@ class ZvecIndex:
                 zvec.FieldSchema("entity_id", zvec.DataType.STRING, nullable=True),
                 zvec.FieldSchema("date", zvec.DataType.STRING, nullable=True),
                 zvec.FieldSchema("title", zvec.DataType.STRING, nullable=True),
+                zvec.FieldSchema("emotion", zvec.DataType.STRING, nullable=True),
+                zvec.FieldSchema("polarity", zvec.DataType.FLOAT, nullable=True),
                 zvec.FieldSchema("text", zvec.DataType.STRING),
             ],
             vectors=[zvec.VectorSchema("embedding", zvec.DataType.VECTOR_FP32, self.dim)],
@@ -143,6 +153,8 @@ class ZvecIndex:
                 "entity_id": unit.get("entity_id", "") or "",
                 "date": unit.get("date", "") or "",
                 "title": unit.get("title", "") or "",
+                "emotion": unit.get("emotion", "") or "",
+                "polarity": float(unit.get("polarity", 0.0) or 0.0),
                 "text": text[:4000],
             },
         )
@@ -193,8 +205,12 @@ class ZvecIndex:
         its events), then entities with that aggregated text.
         """
         entity_events: dict[str, list[str]] = {}
+        entity_polarity: dict[str, list[float]] = {}
+        emo = self._emotion_backend()
 
-        # Pass 1 — events
+        # Pass 1 — events (scored for emotion at index time — this is the cheap,
+        # deterministic precompute that replaces a daily LLM re-read of "who is
+        # upset").
         try:
             for evt in events_mod.timeline(self.root, limit=100000):
                 content = normalize(evt.get("content", ""))
@@ -203,8 +219,10 @@ class ZvecIndex:
                 links = evt.get("links", [])
                 if isinstance(links, str):
                     links = [links]
+                e = emo.score(content)
                 for ent in links:
                     entity_events.setdefault(ent, []).append(content)
+                    entity_polarity.setdefault(ent, []).append(e.polarity)
                 yield {
                     "id": f"event_{evt.get('id')}",
                     "kind": "event",
@@ -212,6 +230,8 @@ class ZvecIndex:
                     "entity_id": (links[0] if links else ""),
                     "date": evt.get("date", ""),
                     "title": "",
+                    "emotion": e.label,
+                    "polarity": e.polarity,
                     "text": content,
                 }
         except Exception:
@@ -220,7 +240,11 @@ class ZvecIndex:
         # Pass 2 — entities. scan_entities() matches any markdown with an `id:`
         # frontmatter (events included), so skip events / soul/events/.
         for entity_id, ref in scan_entities(self.root).items():
-            if entity_id.startswith("evt_") or "events" in ref.path.parts:
+            # scan_entities() matches any markdown with an `id:` frontmatter —
+            # events, actions, predictions, knowledge. Real entities live under
+            # world/ or people/; everything else is not an entity.
+            parts = set(ref.path.parts)
+            if not ("world" in parts or "people" in parts):
                 continue
             try:
                 raw = read_text(ref.path)
@@ -230,6 +254,10 @@ class ZvecIndex:
             name = self._entity_name(fm, entity_id)
             event_text = " ".join(entity_events.get(entity_id, []))
             text = normalize(f"{name} {event_text}")[:4000]
+            pols = entity_polarity.get(entity_id, [])
+            mood = round(sum(pols) / len(pols), 4) if pols else 0.0
+            from .emotion import _label_for
+
             yield {
                 "id": f"entity_{entity_id}",
                 "kind": "entity",
@@ -237,6 +265,8 @@ class ZvecIndex:
                 "entity_id": entity_id,
                 "date": fm.get("updated", "") or "",
                 "title": name,
+                "emotion": _label_for(mood),
+                "polarity": mood,
                 "text": text or name,
             }
 
@@ -274,7 +304,7 @@ class ZvecIndex:
         q = zvec.Query(field_name="embedding", vector=vec)
         res = col.query(
             queries=[q], topk=topk, filter=self._filter(kind, entity_id),
-            output_fields=["kind", "ref_id", "entity_id", "date", "title", "text"],
+            output_fields=["kind", "ref_id", "entity_id", "date", "title", "emotion", "polarity", "text"],
         )
         return [self._row(d) for d in res]
 
@@ -286,6 +316,22 @@ class ZvecIndex:
         index for the closest existing entities and let K1 decide to merge.
         """
         return self.search(name, kind="entity", topk=topk)
+
+    def mood(self, negative_first: bool = True, limit: int = 20) -> list[dict]:
+        """Entities ranked by aggregated emotional polarity.
+
+        Deterministic answer to "谁情绪不好" — read straight off the index
+        instead of re-parsing thousands of messages through an LLM each day.
+        """
+        zvec = self._require()
+        col = self._collection()
+        res = col.query(
+            topk=limit, filter="kind = 'entity'",
+            output_fields=["ref_id", "title", "emotion", "polarity"],
+        )
+        rows = [self._row(d) for d in res]
+        rows.sort(key=lambda r: r.get("polarity") or 0.0, reverse=not negative_first)
+        return rows
 
     @staticmethod
     def _row(doc) -> dict:

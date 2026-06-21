@@ -626,6 +626,11 @@ def cmd_index_stats(args):
     ok(json.dumps(_load_index(args).stats(), ensure_ascii=False, indent=2))
 
 
+def cmd_index_mood(args):
+    rows = _load_index(args).mood(negative_first=not args.positive, limit=args.limit)
+    print_rows(rows, getattr(args, "json", False))
+
+
 def cmd_emotion_score(args):
     from opentsc_core.emotion import get_emotion_backend
     from opentsc_core.config import Config
@@ -772,6 +777,7 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("index-search"); p.add_argument("query"); p.add_argument("--kind"); p.add_argument("--entity"); p.add_argument("--topk", type=int, default=10); p.add_argument("--json", action="store_true"); p.set_defaults(func=cmd_index_search)
     p = sub.add_parser("identity-resolve"); p.add_argument("name"); p.add_argument("--topk", type=int, default=5); p.add_argument("--json", action="store_true"); p.set_defaults(func=cmd_identity_resolve)
     sub.add_parser("index-stats").set_defaults(func=cmd_index_stats)
+    p = sub.add_parser("index-mood"); p.add_argument("--positive", action="store_true"); p.add_argument("--limit", type=int, default=20); p.add_argument("--json", action="store_true"); p.set_defaults(func=cmd_index_mood)
     p = sub.add_parser("emotion-score"); p.add_argument("text"); p.set_defaults(func=cmd_emotion_score)
     p = sub.add_parser("text-segment"); p.add_argument("text"); p.add_argument("--keywords", action="store_true"); p.add_argument("--topk", type=int, default=8); p.set_defaults(func=cmd_text_segment)
     sub.add_parser("config-show").set_defaults(func=cmd_config_show)
