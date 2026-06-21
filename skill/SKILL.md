@@ -89,8 +89,18 @@ and identity resolution. Everything is **pluggable** and degrades gracefully:
 
 ## The CLI-first mandate (non-negotiable)
 
-The agent **must not** hand-read or hand-write vault files for anything a
-command already does. Reading every markdown file to count, find, segment,
+**Scope first — this does NOT make the agent robotic.** Understanding the
+user's natural-language intent is, and remains, the agent's job: read the
+request, infer what is meant, then route to the right command(s). The mandate
+governs *execution*, not *understanding*. Use **`index-search`** as your
+semantic recall — turn a fuzzy human ask ("谁最近在交付上靠谱？") into a
+query against the index instead of a brittle keyword scan, and **fall back to
+reading specific files only when no command fits**. Free-text intake stays
+LLM-driven (`capture-actions`, `draft-inbox-event`, `suggest-actions`).
+
+What the mandate forbids is wasting the LLM on *mechanical* work a command
+already does. The agent **must not** hand-read or hand-write vault files for
+anything a command covers. Reading every markdown file to count, find, segment,
 score sentiment, or resolve a name is both a token furnace and the root cause
 of drift (wrong counts, `马克思` vs `马斯克`, corrupted YAML). Instead:
 
