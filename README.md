@@ -6,7 +6,9 @@
 
 由 **dashen**（「AI 最严厉的父亲」）创立 · [dashen.wang](https://dashen.wang) · [@dashen_wang](https://x.com/dashen_wang)
 
-[![License: AGPL v3](https://img.shields.io/badge/code-AGPL--3.0-blue.svg)](LICENSE) · [商用授权](LICENSING.md) · [魂 · 白皮书 →](https://github.com/opentsc/tsc)
+[![License: AGPL v3](https://img.shields.io/badge/code-AGPL--3.0-blue.svg)](LICENSE) · ![version](https://img.shields.io/badge/version-v2.0.0-green.svg) · [商用授权](LICENSING.md) · [魂 · 白皮书 →](https://github.com/opentsc/tsc)
+
+[更新日志](CHANGELOG.md) · [迁移 v1→v2](MIGRATION.md) · [使用说明](docs/usage.md)
 
 </div>
 
@@ -19,12 +21,19 @@
 
 OpenTSC 是一个面向 Claude Code / Agent 的**单人、本地优先（local / offline-first）**人际情报系统——一间私人作战室，**不是 CRM**。
 
-## 核心能力（v1.0）
+## 核心能力
 
 - **事件图谱（K3）** — 事件是独立节点，多实体链接 + 因果边，当前状态由事件流推导而非手填。
 - **判断引擎（K7，核心创新）** — 新事件到达，K7 读判断法典自动推导属性补丁；三层属性（base / skills / states），每条都是带 `{value, confidence, provenance, decay}` 的 AttributeClaim。
 - **自创生引擎（K8）** — 检测能力缺口 → 生成 Agent 草稿 → 校验法则 → 用户审批激活。
 - **11 个 VSM 职业** · **校准闭环**（预测→跟踪→命中率→法典自迭代）· **魂壳分离**（soul/ 可导出复活）。
+
+### v2.0 新增 — 可插拔记忆引擎 + 确定性优先
+
+- **zvec 记忆索引** — markdown 仍是真源，zvec 是可重建的派生索引：语义搜索、混合检索、`identity-resolve` 身份解析（根治 hash-ID 泛滥与名字漂移）、`index-mood`（谁情绪不好）。
+- **可插拔后端** — 向量 `lite`/`local`/`api`、情绪 `lexicon`/`model`/`llm`，在 `soul/_config.yaml` 里一行切换。
+- **核心零依赖也能跑** — 不装 jieba/snownlp/zvec 也能用（自动降级）；重型后端按需开启。
+- **CLI-first** — 该用命令的地方绝不让 LLM 重读 vault，省 token、灭漂移。详见 [`docs/usage.md`](docs/usage.md)。
 
 ## 快速开始
 
@@ -32,10 +41,15 @@ OpenTSC 是一个面向 Claude Code / Agent 的**单人、本地优先（local /
 # 把本仓 skill/ 放到你项目的 .claude/skills/opentsc/，或直接用 CLI：
 python skill/scripts/opentsc.py --root my-vault init
 python skill/scripts/opentsc.py --root my-vault world-new-npc "Carol" --id p_carol --tag core_team
-python skill/scripts/opentsc.py --root my-vault judgment-attribute p_carol execution_ceiling
+python skill/scripts/opentsc.py --root my-vault event-add B2 "Carol 按时交付报价" "会议纪要" --link p_carol
+
+# v2.0 记忆引擎（可选依赖：pip install jieba snownlp zvec）
+python skill/scripts/opentsc.py --root my-vault index-build
+python skill/scripts/opentsc.py --root my-vault index-search "谁交付靠谱" --kind entity
+python skill/scripts/opentsc.py --root my-vault identity-resolve "Carol"
 ```
 
-完整命令见 [`skill/命令说明.md`](skill/命令说明.md) · 新手上路见 [`skill/新人使用教程.md`](skill/新人使用教程.md)。
+完整命令见 [`skill/命令说明.md`](skill/命令说明.md) · 新手上路见 [`skill/新人使用教程.md`](skill/新人使用教程.md) · v2.0 用法见 [`docs/usage.md`](docs/usage.md)。
 
 ## 魂 ↔ 壳 对照（理念如何被实现）
 
