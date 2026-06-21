@@ -1,0 +1,20 @@
+# OpenTSC vault config (v2.0). Place at <vault>/soul/_config.yaml.
+# Every line is optional; omitted keys fall back to the defaults shown here.
+# Env vars OPENTSC_<KEY> (uppercase) override any value below.
+
+# --- capability backends ---
+embedding_backend: lite        # lite | local | api
+emotion_backend: lexicon       # lexicon | model | llm
+
+# --- embedding tuning ---
+embedding_dim: 256                         # lite hashing dimension
+embedding_model: BAAI/bge-small-zh-v1.5    # used when embedding_backend: local
+embedding_api_url:                         # used when embedding_backend: api
+embedding_api_key_env: OPENTSC_EMBED_API_KEY
+
+# --- emotion tuning ---
+emotion_model: uer/roberta-base-finetuned-jd-binary-chinese  # when emotion_backend: model
+emotion_llm_command:                       # shell cmd (text on stdin → polarity on stdout) when: llm
+
+# --- index ---
+index_dir: .index              # under soul/; derived, rebuildable, git-ignored

@@ -139,6 +139,29 @@ def due_actions(root: Path) -> list[dict[str, str]]:
     return list_actions(root, due="today")
 
 
+def stale_actions(root: Path, days: int = 30, status: str = "active") -> list[dict[str, str]]:
+    """Active actions untouched for `days` days or already past due — the
+    deterministic zombie finder that replaces an LLM re-scanning actions/active/
+    on every cron run. Each row gains `age_days` and `overdue`.
+    """
+    import time
+
+    cutoff = time.time() - days * 86400
+    today_iso = dt.date.today().isoformat()
+    rows: list[dict[str, str]] = []
+    for row in list_actions(root, status=status):
+        try:
+            mtime = Path(row["path"]).stat().st_mtime
+        except OSError:
+            continue
+        due = row.get("due", "")
+        overdue = bool(due) and not due.startswith("TODO") and due < today_iso
+        if mtime < cutoff or overdue:
+            rows.append({**row, "age_days": str(int((time.time() - mtime) / 86400)),
+                         "overdue": "yes" if overdue else "no"})
+    return sorted(rows, key=lambda r: int(r["age_days"]), reverse=True)
+
+
 def _yaml_list(key: str, values: list[str]) -> str:
     if not values:
         return f"{key}: []"

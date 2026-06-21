@@ -13,7 +13,7 @@ import sys
 from pathlib import Path
 
 # --- Legacy imports (backward compatible) ---
-from opentsc_core.actions import accept_action, capture_actions, complete_action, list_actions, new_action, reject_action, suggest_actions, transition_action
+from opentsc_core.actions import accept_action, capture_actions, complete_action, list_actions, new_action, reject_action, stale_actions, suggest_actions, transition_action
 from opentsc_core.calibration import accuracy, calibrate, due_predictions
 from opentsc_core.conflicts import detect_conflicts, write_conflict_report
 from opentsc_core.contacts import import_contacts_csv
@@ -645,6 +645,11 @@ def cmd_config_show(args):
     ok(json.dumps(asdict(Config.load(Path(args.root).resolve())), ensure_ascii=False, indent=2))
 
 
+def cmd_actions_stale(args):
+    rows = stale_actions(Path(args.root).resolve(), days=args.days, status=args.status)
+    print_rows(rows, getattr(args, "json", False))
+
+
 # ═══════════════════════════════════════
 # Parser
 # ═══════════════════════════════════════
@@ -770,6 +775,7 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("emotion-score"); p.add_argument("text"); p.set_defaults(func=cmd_emotion_score)
     p = sub.add_parser("text-segment"); p.add_argument("text"); p.add_argument("--keywords", action="store_true"); p.add_argument("--topk", type=int, default=8); p.set_defaults(func=cmd_text_segment)
     sub.add_parser("config-show").set_defaults(func=cmd_config_show)
+    p = sub.add_parser("actions-stale"); p.add_argument("--days", type=int, default=30); p.add_argument("--status", default="active"); p.add_argument("--json", action="store_true"); p.set_defaults(func=cmd_actions_stale)
     return parser
 
 

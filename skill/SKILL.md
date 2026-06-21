@@ -1,9 +1,9 @@
 ---
 name: opentsc
-description: "OpenTSC v1.0: Soul/Shell architecture for interpersonal intelligence. A local, offline-first system with event graphs, judgment engine (K7), self-creation (K8), three-layer attributes, calibrated predictions, and 11 VSM professions. Transforms implicit social judgment into explicit, queryable, auditable, evolving intelligence."
+description: "OpenTSC v2.0: Soul/Shell architecture for interpersonal intelligence. Local, offline-first, with event graphs, judgment engine (K7), self-creation (K8), three-layer attributes, calibrated predictions, 11 VSM professions, and a pluggable zvec memory index (semantic search, identity resolution, jieba segmentation, emotion scoring) that runs with zero extra deps. Transforms implicit social judgment into explicit, queryable, auditable, evolving intelligence."
 ---
 
-# OpenTSC v1.0 Skill — Soul/Shell Architecture
+# OpenTSC v2.0 Skill — Soul/Shell Architecture
 
 Use this skill when the user wants to design, build, review, or operate **OpenTSC**: a single-user, local/offline-first interpersonal intelligence system derived from the TSC doctrine.
 
@@ -70,6 +70,37 @@ founder, commander, sentinel, ingestor, distiller, oracle, herald, coordinator, 
 ### Calibration Loop
 Predictions with due dates → outcome tracking → hit rate stats → judgment codex self-iteration.
 
+## Memory & Determinism (v2.0)
+
+The vault markdown is the **source of truth**; a derived, rebuildable **zvec
+memory index** (under `soul/.index/`) gives semantic search, hybrid retrieval,
+and identity resolution. Everything is **pluggable** and degrades gracefully:
+
+- **Embedding backend** (`lite` | `local` | `api`) and **emotion backend**
+  (`lexicon` | `model` | `llm`) are chosen in `soul/_config.yaml`. The core
+  runs with **zero extra dependencies** — `lite` hashing vectors, a built-in
+  emotion lexicon, and a regex segmenter are always available; jieba / snownlp /
+  zvec / on-device models are opt-in (see `requirements.txt`).
+- **Semantic recall** replaces full-vault re-reads: `index-search`,
+  `identity-resolve` (kills hash-id sprawl and name drift), `index-sync`.
+- **Deterministic precompute** replaces token-burning LLM scans:
+  `emotion-score`, `text-segment`, `actions-stale`. Compute facts in Python;
+  spend the LLM only on judgment.
+
+## The CLI-first mandate (non-negotiable)
+
+The agent **must not** hand-read or hand-write vault files for anything a
+command already does. Reading every markdown file to count, find, segment,
+score sentiment, or resolve a name is both a token furnace and the root cause
+of drift (wrong counts, `马克思` vs `马斯克`, corrupted YAML). Instead:
+
+- **Never hand-write YAML frontmatter** — always go through the CLI writers.
+- **Never re-scan the vault to find or count** — use `index-search`,
+  `actions`, `actions-stale`, `timeline`, `due`.
+- **Never guess identity** — use `identity-resolve` before creating an entity.
+- **Data sources (WeChat, email, transcripts) are not core** — they are
+  user-built skills that feed the CLI. See `references/extending-with-skills.md`.
+
 ## Skill workflow
 
 When working on OpenTSC:
@@ -77,9 +108,10 @@ When working on OpenTSC:
 1. **Classify the request.** Is it soul, shell, world, event, judgment, profession, genesis, or legacy operation?
 2. **Load only the needed reference module.** Keep context small and modular.
 3. **Preserve laws first.** Refuse shortcuts that bypass stable IDs, append-only events, evidence ratings, feedback due dates, or user confirmation gates.
-4. **Use v1 commands for v1 vaults.** Check `is_v1_vault(root)` and route accordingly.
-5. **Make drafts explicit.** Automatic extraction → inbox/; formal entry requires user confirmation.
-6. **Return auditable outputs.** Include IDs, source references, reasoning chains, confidence, and next decisions.
+4. **Prefer a command over reading files.** If a CLI command can answer it deterministically, call it — do not re-scan the vault (CLI-first mandate above).
+5. **Use v1 commands for v1 vaults.** Check `is_v1_vault(root)` and route accordingly.
+6. **Make drafts explicit.** Automatic extraction → inbox/; formal entry requires user confirmation.
+7. **Return auditable outputs.** Include IDs, source references, reasoning chains, confidence, and next decisions.
 
 ## Module map
 
@@ -95,11 +127,18 @@ When working on OpenTSC:
   - `schema_mgr.py` — K5 field ontology
   - `migrate.py` — v0.4 → v1.0 vault migration
   - `common.py` — shared utilities, path helpers, YAML frontmatter
+  - **v2.0** `config.py` — pluggable backend selection (embedding/emotion)
+  - **v2.0** `text.py` — jieba segmentation + keywords (regex fallback)
+  - **v2.0** `emotion.py` — pluggable sentiment (lexicon/model/llm)
+  - **v2.0** `embedding.py` — pluggable vectors (lite/local/api)
+  - **v2.0** `index.py` — zvec memory index (markdown stays source of truth)
   - `vault.py`, `entities.py`, `relations.py`, `query.py`, `actions.py`, `calibration.py`, `filing.py`, `sources.py`, `contacts.py`, `conflicts.py`, `report.py`, `validate.py`, `upgrade.py`, `skills.py` — legacy modules (enhanced for v1.0 compat)
 - `references/philosophy.md` — Twelve Laws
 - `references/data-contract.md` — soul/shell/world layout, event graph schema, AttributeClaim
 - `references/kernel.md` — K1-K8 responsibilities and API
 - `references/plugins.md` — module families and contracts
+- `references/extending-with-skills.md` — how data-source skills (WeChat, email, …) feed the core
+- `requirements.txt` — optional dependencies per backend
 - `templates/` — person_v1, event, profession, genesis_seed, judgment_codex_seed, rule_codex_seed, + legacy templates
 
 ## CLI command groups
@@ -113,6 +152,8 @@ profession-list, profession-gaps, profession-assign, profession-init
 genesis-detect-gaps, genesis-spawn, genesis-validate, genesis-register, genesis-sunset
 schema-list, schema-register, schema-validate
 migrate
+index-build, index-sync, index-search, identity-resolve, index-stats   (v2.0 memory)
+emotion-score, text-segment, actions-stale, config-show                (v2.0 deterministic)
 + all legacy commands (init, new-person, add-event, query, who-can, link, etc.)
 ```
 
