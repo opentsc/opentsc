@@ -1,0 +1,21 @@
+# OpenTSC optional dependencies.
+#
+# The core runs on a bare Python 3.10+ install with ZERO of these — the
+# `lite` embedding and `lexicon` (built-in) emotion backends, plus the regex
+# segmenter, are always available. Install the extras only for the backend you
+# select in soul/_config.yaml.
+
+# Chinese segmentation + keyword extraction (text.py). Pure Python.
+jieba>=0.42
+
+# Lexicon sentiment, default emotion backend (emotion.py: lexicon). Pure Python.
+snownlp>=0.12
+
+# Vector memory index (index.py). Embeddable, in-process. Python 3.10–3.14.
+zvec>=0.5
+
+# --- opt-in heavy backends (only if you choose them in _config.yaml) ---
+# embedding_backend: local
+# sentence-transformers>=2.2     # e.g. BAAI/bge-small-zh-v1.5
+# emotion_backend: model
+# transformers>=4.30

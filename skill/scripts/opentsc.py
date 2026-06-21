@@ -588,6 +588,64 @@ def cmd_validate(args):
 
 
 # ═══════════════════════════════════════
+# v2.0 commands — memory index / text / emotion / config
+# ═══════════════════════════════════════
+
+def _load_index(args):
+    from opentsc_core.index import ZvecIndex
+    from opentsc_core.config import Config
+    root = Path(args.root).resolve()
+    return ZvecIndex(root, Config.load(root))
+
+
+def cmd_index_build(args):
+    idx = _load_index(args)
+    if not idx.available():
+        fail(RuntimeError("zvec not installed — run `pip install zvec`"))
+    ok(json.dumps({"built": idx.build()}, ensure_ascii=False, indent=2))
+
+
+def cmd_index_sync(args):
+    idx = _load_index(args)
+    if not idx.available():
+        fail(RuntimeError("zvec not installed — run `pip install zvec`"))
+    ok(json.dumps(idx.sync(), ensure_ascii=False, indent=2))
+
+
+def cmd_index_search(args):
+    rows = _load_index(args).search(args.query, kind=args.kind, entity_id=args.entity, topk=args.topk)
+    print_rows(rows, getattr(args, "json", False))
+
+
+def cmd_identity_resolve(args):
+    rows = _load_index(args).resolve_identity(args.name, topk=args.topk)
+    print_rows(rows, getattr(args, "json", False))
+
+
+def cmd_index_stats(args):
+    ok(json.dumps(_load_index(args).stats(), ensure_ascii=False, indent=2))
+
+
+def cmd_emotion_score(args):
+    from opentsc_core.emotion import get_emotion_backend
+    from opentsc_core.config import Config
+    root = Path(args.root).resolve()
+    ok(json.dumps(get_emotion_backend(Config.load(root)).score(args.text).as_dict(), ensure_ascii=False, indent=2))
+
+
+def cmd_text_segment(args):
+    from opentsc_core import text
+    result = text.keywords(args.text, args.topk) if args.keywords else text.segment(args.text)
+    ok(json.dumps(result, ensure_ascii=False))
+
+
+def cmd_config_show(args):
+    from opentsc_core.config import Config
+    from dataclasses import asdict
+    ok(json.dumps(asdict(Config.load(Path(args.root).resolve())), ensure_ascii=False, indent=2))
+
+
+# ═══════════════════════════════════════
 # Parser
 # ═══════════════════════════════════════
 
@@ -702,6 +760,16 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("suggest-actions"); p.add_argument("--goal"); p.add_argument("--operation"); p.add_argument("--entity"); p.add_argument("--gap"); p.set_defaults(func=cmd_suggest_actions)
     p = sub.add_parser("report-monthly"); p.add_argument("--month"); p.set_defaults(func=cmd_report)
     sub.add_parser("brief").set_defaults(func=cmd_brief)
+
+    # --- v2.0 memory index / text / emotion / config ---
+    sub.add_parser("index-build").set_defaults(func=cmd_index_build)
+    sub.add_parser("index-sync").set_defaults(func=cmd_index_sync)
+    p = sub.add_parser("index-search"); p.add_argument("query"); p.add_argument("--kind"); p.add_argument("--entity"); p.add_argument("--topk", type=int, default=10); p.add_argument("--json", action="store_true"); p.set_defaults(func=cmd_index_search)
+    p = sub.add_parser("identity-resolve"); p.add_argument("name"); p.add_argument("--topk", type=int, default=5); p.add_argument("--json", action="store_true"); p.set_defaults(func=cmd_identity_resolve)
+    sub.add_parser("index-stats").set_defaults(func=cmd_index_stats)
+    p = sub.add_parser("emotion-score"); p.add_argument("text"); p.set_defaults(func=cmd_emotion_score)
+    p = sub.add_parser("text-segment"); p.add_argument("text"); p.add_argument("--keywords", action="store_true"); p.add_argument("--topk", type=int, default=8); p.set_defaults(func=cmd_text_segment)
+    sub.add_parser("config-show").set_defaults(func=cmd_config_show)
     return parser
 
 

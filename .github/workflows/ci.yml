@@ -21,6 +21,10 @@ jobs:
         working-directory: skill
         run: python tests/smoke.py
 
+      - name: Run v2 module tests (graceful-degradation path, no extra deps)
+        working-directory: skill
+        run: python tests/test_v2.py
+
   pii-guard:
     runs-on: ubuntu-latest
     steps:
