@@ -4,7 +4,11 @@
 
 # --- capability backends ---
 embedding_backend: lite        # lite | local | api
-emotion_backend: lexicon       # lexicon | model | llm
+emotion_backend: lexicon       # lexicon | model | llm | hybrid
+#   lexicon : 领域词典(零依赖,默认),对业务文本已校准
+#   model   : 本地中文情绪模型(需 transformers),更准
+#   llm     : 大模型打分,最准、最贵 —— 已自动【批量+缓存】省 token
+#   hybrid  : 词典先打,只有不确定的少数句子才升级给 llm(最省 token 的高准方案)
 
 # --- embedding tuning ---
 embedding_dim: 256                         # lite hashing dimension
@@ -14,7 +18,10 @@ embedding_api_key_env: OPENTSC_EMBED_API_KEY
 
 # --- emotion tuning ---
 emotion_model: uer/roberta-base-finetuned-jd-binary-chinese  # when emotion_backend: model
-emotion_llm_command:                       # shell cmd (text on stdin → polarity on stdout) when: llm
+emotion_llm_command:                       # 命令:stdin 收 JSON 文本数组 → stdout 回等长极性数组
+                                           # 示例: "python <skill>/scripts/emotion_llm_example.py"
+emotion_escalate_threshold: 0.55           # hybrid: 词典置信低于此值才升级给 llm
+emotion_cache: 1                           # 1=按文本哈希缓存 llm 打分,cron 重跑不再重花 token
 
 # --- index ---
 index_dir: .index              # under soul/; derived, rebuildable, git-ignored

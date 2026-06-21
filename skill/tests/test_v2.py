@@ -81,6 +81,56 @@ def test_emotion():
     check("polarity bounded", -1.0 <= pos.polarity <= 1.0)
 
 
+def test_emotion_domain_lexicon():
+    # The domain lexicon must get business/relationship status text right even
+    # without snownlp (CI runs with no extra deps) — this is the demo bug fix.
+    lex = emotion.LexiconEmotion(use_snownlp=False)
+    check("拖延烦躁 = negative", lex.score("Dave 在GPU采购上拖延，情绪烦躁").polarity < 0)
+    check("主动积极 = positive", lex.score("Carol 主动接了报价，状态积极").polarity > 0)
+    check("no domain word = low confidence", lex.score("下午开个会").confidence < 0.55)
+
+
+def test_emotion_llm_batch_cache(tmp):
+    import tempfile
+    from opentsc_core.emotion import LLMEmotion, _Cache
+
+    # Fake LLM command: counts invocations, scores by keyword.
+    calls = Path(tmp) / "calls"
+    cmd = (
+        f"python3 -c \"import json,sys;"
+        f"raw=sys.stdin.read();t=json.loads(raw[raw.find('['):]);"
+        f"open(r'{calls}','a').write('x');"
+        f"print(json.dumps([1.0 if '好' in x else -1.0 for x in t]))\""
+    )
+    cache = _Cache(Path(tmp) / "c.json")
+    b = LLMEmotion(cmd, cache)
+    texts = ["很好", "不好", "也好"]
+    r1 = b.score_many(texts)
+    check("llm batch scores all", len(r1) == 3 and r1[0].polarity == 1.0)
+    r2 = b.score_many(texts)  # all cached now
+    check("llm second pass cached", all(":cache" in e.backend for e in r2))
+    n = len((calls).read_text()) if calls.exists() else 0
+    check("llm batched into one call, cache stops re-spend", n == 1)
+
+
+def test_emotion_hybrid_escalation(tmp):
+    from opentsc_core.emotion import HybridEmotion, LexiconEmotion, LLMEmotion, _Cache
+
+    calls = Path(tmp) / "hcalls"
+    cmd = (
+        f"python3 -c \"import json,sys;"
+        f"raw=sys.stdin.read();t=json.loads(raw[raw.find('['):]);"
+        f"open(r'{calls}','a').write('x');print(json.dumps([0.0]*len(t)))\""
+    )
+    h = HybridEmotion(LexiconEmotion(use_snownlp=False),
+                      LLMEmotion(cmd, _Cache(Path(tmp) / "hc.json")), threshold=0.55)
+    out = h.score_many(["主动接了很积极", "拖延烦躁", "随便聊聊没有情绪词"])
+    check("confident handled by lexicon", out[0].backend == "hybrid:lexicon")
+    check("uncertain escalated to llm", out[2].backend == "hybrid:llm")
+    n = len((calls).read_text()) if calls.exists() else 0
+    check("only uncertain escalates (1 batched call)", n == 1)
+
+
 # --- embedding (lite: deterministic, similar > dissimilar) ------------------
 
 def test_embedding_lite():
@@ -109,11 +159,17 @@ def test_index_optional():
 
 
 def main():
-    for fn in [
+    no_arg = [
         test_frontmatter_roundtrip, test_config, test_text,
-        test_emotion, test_embedding_lite, test_index_optional,
-    ]:
+        test_emotion, test_emotion_domain_lexicon, test_embedding_lite,
+        test_index_optional,
+    ]
+    needs_tmp = [test_emotion_llm_batch_cache, test_emotion_hybrid_escalation]
+    for fn in no_arg:
         fn()
+    with tempfile.TemporaryDirectory() as d:
+        for fn in needs_tmp:
+            fn(d)
     print(f"OpenTSC v2 tests passed ({PASS} checks)")
 
 

@@ -93,8 +93,23 @@ tsc accuracy                 # 你的命中率账本（receipts）
 
 ```yaml
 embedding_backend: local       # 换本地中文向量模型，语义更准
-emotion_backend: model         # 换本地情绪模型，业务文本不再误判
+
+# 情绪四选一：
+# emotion_backend: lexicon     # 默认，领域词典，零依赖，业务文本已校准
+# emotion_backend: model       # 本地情绪模型，需 transformers
+# emotion_backend: llm         # 大模型最准；已自动批量+缓存省 token
+emotion_backend: hybrid        # 推荐：词典先打，只有模糊句才升级给 LLM
+emotion_llm_command: "python /path/.../skill/scripts/emotion_llm_example.py"
 ```
+
+用 `llm`/`hybrid` 时配好 LLM 命令的环境变量（见 `emotion_llm_example.py` 顶部）：
+
+```bash
+export OPENTSC_EMOTION_API_URL=https://your-provider/v1/chat/completions
+export OPENTSC_EMOTION_API_KEY=sk-...
+```
+
+**token 怎么省**：① 打过的文本按哈希永久缓存，cron 重跑不再花钱；② 一次调用批量打一批；③ `hybrid` 下大部分明显情绪由词典免费搞定，LLM 只处理少数模糊句。
 
 切完跑一次 `tsc index-build` 重建（`index-sync` 也会自动检测并重建）。
 

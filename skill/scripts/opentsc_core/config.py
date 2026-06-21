@@ -23,7 +23,7 @@ from pathlib import Path
 
 # Backend identifiers (kept as plain strings so config files stay human-edited).
 EMBEDDING_BACKENDS = ("lite", "local", "api")
-EMOTION_BACKENDS = ("lexicon", "model", "llm")
+EMOTION_BACKENDS = ("lexicon", "model", "llm", "hybrid")
 
 
 @dataclass
@@ -48,6 +48,8 @@ class Config:
     # --- emotion tuning ---
     emotion_model: str = "uer/roberta-base-finetuned-jd-binary-chinese"
     emotion_llm_command: str = ""        # shell command the llm backend shells out to
+    emotion_escalate_threshold: float = 0.55  # hybrid: below this lexicon confidence → ask the LLM
+    emotion_cache: int = 1               # 1 = persist LLM scores by text hash (skip re-spend)
 
     # --- index ---
     index_dir: str = ".index"            # relative to soul/; holds the zvec store (derived, rebuildable)
@@ -84,9 +86,16 @@ class Config:
 
     def _set_coerced(self, key: str, value: str) -> None:
         current = getattr(self, key)
-        if isinstance(current, int) and not isinstance(current, bool):
+        if isinstance(current, bool):
+            value = str(value).strip().lower() in {"1", "true", "yes", "on"}
+        elif isinstance(current, int):
             try:
                 value = int(value)
+            except ValueError:
+                return
+        elif isinstance(current, float):
+            try:
+                value = float(value)
             except ValueError:
                 return
         setattr(self, key, value)

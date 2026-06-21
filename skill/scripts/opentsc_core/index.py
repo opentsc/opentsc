@@ -59,7 +59,7 @@ class ZvecIndex:
         if self._emotion is None:
             from .emotion import get_emotion_backend
 
-            self._emotion = get_emotion_backend(self.config)
+            self._emotion = get_emotion_backend(self.config, cache_path=self.dir / "emotion_cache.json")
         return self._emotion
 
     # -- availability / lifecycle ------------------------------------------
@@ -206,11 +206,11 @@ class ZvecIndex:
         """
         entity_events: dict[str, list[str]] = {}
         entity_polarity: dict[str, list[float]] = {}
-        emo = self._emotion_backend()
 
-        # Pass 1 — events (scored for emotion at index time — this is the cheap,
-        # deterministic precompute that replaces a daily LLM re-read of "who is
-        # upset").
+        # Pass 1 — events. Collect first, then score emotion for the whole batch
+        # in ONE score_many call: this is what lets the llm/hybrid backends
+        # batch and cache instead of paying per-event.
+        rows = []
         try:
             for evt in events_mod.timeline(self.root, limit=100000):
                 content = normalize(evt.get("content", ""))
@@ -219,23 +219,26 @@ class ZvecIndex:
                 links = evt.get("links", [])
                 if isinstance(links, str):
                     links = [links]
-                e = emo.score(content)
-                for ent in links:
-                    entity_events.setdefault(ent, []).append(content)
-                    entity_polarity.setdefault(ent, []).append(e.polarity)
-                yield {
-                    "id": f"event_{evt.get('id')}",
-                    "kind": "event",
-                    "ref_id": evt.get("id", ""),
-                    "entity_id": (links[0] if links else ""),
-                    "date": evt.get("date", ""),
-                    "title": "",
-                    "emotion": e.label,
-                    "polarity": e.polarity,
-                    "text": content,
-                }
+                rows.append((evt, content, links))
         except Exception:
-            pass
+            rows = []
+
+        emotions = self._emotion_backend().score_many([c for _, c, _ in rows]) if rows else []
+        for (evt, content, links), e in zip(rows, emotions):
+            for ent in links:
+                entity_events.setdefault(ent, []).append(content)
+                entity_polarity.setdefault(ent, []).append(e.polarity)
+            yield {
+                "id": f"event_{evt.get('id')}",
+                "kind": "event",
+                "ref_id": evt.get("id", ""),
+                "entity_id": (links[0] if links else ""),
+                "date": evt.get("date", ""),
+                "title": "",
+                "emotion": e.label,
+                "polarity": e.polarity,
+                "text": content,
+            }
 
         # Pass 2 — entities. scan_entities() matches any markdown with an `id:`
         # frontmatter (events included), so skip events / soul/events/.

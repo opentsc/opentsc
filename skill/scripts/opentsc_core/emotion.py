@@ -1,21 +1,35 @@
 """Pluggable emotion / sentiment scoring.
 
-Three interchangeable backends, selected by ``Config.emotion_backend``:
+Backends, selected by ``Config.emotion_backend``:
 
-* ``lexicon``  — snownlp if installed, else a tiny built-in lexicon. Pure,
-  offline, millisecond-fast, reproducible. The sane default.
-* ``model``    — an on-device transformer classifier (opt-in, heavier).
-* ``llm``      — defers to an external command/agent for the hard cases.
+* ``lexicon`` — snownlp if installed, else a built-in lexicon. Pure, offline,
+  millisecond-fast, free. Weak on short business text.
+* ``model``   — an on-device transformer classifier (opt-in, heavier, accurate).
+* ``llm``     — a large language model via an external command. Most accurate,
+  costs tokens — so it is **batched and cached** (see below).
+* ``hybrid``  — the token-smart default-when-you-have-an-LLM: the cheap lexicon
+  scores everything, and **only the genuinely uncertain texts escalate to the
+  LLM**. Most messages never reach the model.
 
-All backends return the same :class:`Emotion` so callers never branch on which
-one is active. The point of this module is to move "谁情绪不好" out of a daily
-LLM re-read and into a cheap, deterministic precompute.
+Token discipline for the LLM path (this is how "wasteful but solve it" is
+solved):
+  1. **Cache** — every score is persisted by text hash; a re-run (e.g. the daily
+     cron) pays nothing for text it has already seen.
+  2. **Batch** — many texts go in one call via ``score_many``, not one call each.
+  3. **Escalate** — in ``hybrid`` mode the LLM only sees what the lexicon is
+     unsure about.
+
+All backends return the same :class:`Emotion` and expose ``score`` /
+``score_many`` so callers never branch on which one is active.
 """
 
 from __future__ import annotations
 
+import hashlib
+import json
 import subprocess
 from dataclasses import dataclass, asdict
+from pathlib import Path
 from typing import Protocol, runtime_checkable
 
 from .config import Config
@@ -54,28 +68,74 @@ class EmotionBackend(Protocol):
 
     def score(self, text: str) -> Emotion: ...
 
+    def score_many(self, texts: list[str]) -> list[Emotion]: ...
+
+
+class _LoopMany:
+    """Mixin: default score_many = score each (overridden where batching helps)."""
+
+    def score_many(self, texts: list[str]) -> list[Emotion]:
+        return [self.score(t) for t in texts]
+
+
+# --- persistent score cache ------------------------------------------------
+
+
+class _Cache:
+    """Tiny JSON cache keyed by sha1(text). Used to never re-spend on the LLM."""
+
+    def __init__(self, path: Path | None) -> None:
+        self.path = Path(path) if path else None
+        self._data: dict[str, list] = {}
+        if self.path and self.path.exists():
+            try:
+                self._data = json.loads(self.path.read_text(encoding="utf-8"))
+            except Exception:
+                self._data = {}
+
+    @staticmethod
+    def key(text: str) -> str:
+        return hashlib.sha1(text.encode("utf-8")).hexdigest()
+
+    def get(self, text: str):
+        return self._data.get(self.key(text))
+
+    def put(self, text: str, polarity: float, confidence: float) -> None:
+        self._data[self.key(text)] = [polarity, confidence]
+
+    def flush(self) -> None:
+        if self.path is not None:
+            self.path.parent.mkdir(parents=True, exist_ok=True)
+            self.path.write_text(json.dumps(self._data, ensure_ascii=False), encoding="utf-8")
+
 
 # --- lexicon backend -------------------------------------------------------
 
-# Minimal fallback lexicon used only when snownlp is unavailable. Deliberately
-# small; the goal is "never crash", not "win a benchmark".
-_POS = {"好", "棒", "赞", "喜欢", "开心", "满意", "感谢", "支持", "靠谱",
-        "厉害", "成功", "顺利", "期待", "爱", "强", "稳", "妥"}
-_NEG = {"差", "烂", "坑", "讨厌", "生气", "失望", "不满", "投诉", "垃圾",
-        "失败", "麻烦", "焦虑", "担心", "怕", "累", "拖", "崩", "怒", "骂"}
+# Curated domain lexicon — tuned for short business/relationship status text,
+# where snownlp (trained on product reviews) routinely inverts. These take
+# priority; snownlp is a fallback only when no domain word is present.
+_POS = {"好", "棒", "赞", "喜欢", "开心", "满意", "感谢", "支持", "靠谱", "积极",
+        "主动", "接了", "接下", "完成", "交付", "搞定", "推进", "答应", "确认",
+        "厉害", "成功", "顺利", "期待", "爱", "强", "稳", "妥", "给力", "配合"}
+_NEG = {"差", "烂", "坑", "讨厌", "生气", "失望", "不满", "投诉", "垃圾", "拖",
+        "拖延", "烦躁", "焦虑", "担心", "怕", "累", "崩", "怒", "骂", "敷衍",
+        "失败", "麻烦", "已读不回", "不回", "掉线", "推脱", "甩锅", "犹豫", "拒绝"}
 
 
-class LexiconEmotion:
-    """snownlp-backed sentiment, with a built-in lexicon fallback."""
+class LexiconEmotion(_LoopMany):
+    """Curated domain lexicon first; snownlp as fallback when no domain signal."""
 
     name = "lexicon"
 
-    def __init__(self) -> None:
-        self._snow = None
+    def __init__(self, use_snownlp: bool = True) -> None:
+        # In hybrid mode the primary should report LOW confidence on text it has
+        # no domain signal for, so the uncertain cases escalate to the LLM —
+        # snownlp's overconfident guesses would otherwise block escalation.
+        self._use_snownlp = use_snownlp
         try:
             from snownlp import SnowNLP  # type: ignore
 
-            self._snow = SnowNLP
+            self._snow = SnowNLP if use_snownlp else None
         except Exception:
             self._snow = None
 
@@ -83,34 +143,37 @@ class LexiconEmotion:
         text = (text or "").strip()
         if not text:
             return Emotion(0.0, "neutral", 0.0, self.name)
+        domain = self._domain_score(text)
+        if domain is not None:
+            return domain
         if self._snow is not None:
             try:
-                s = self._snow(text).sentiments  # 0..1
-                polarity = (s - 0.5) * 2.0
-                confidence = abs(polarity)
-                return Emotion(round(polarity, 4), _label_for(polarity), round(confidence, 4), self.name)
+                s = self._snow(text).sentiments
+                polarity = round((s - 0.5) * 2.0, 4)
+                return Emotion(polarity, _label_for(polarity), abs(polarity), self.name + ":snownlp")
             except Exception:
                 pass
-        return self._lexicon_score(text)
+        return Emotion(0.0, "neutral", 0.0, self.name)
 
-    def _lexicon_score(self, text: str) -> Emotion:
+    def _domain_score(self, text: str) -> Emotion | None:
         from .text import segment
 
         toks = segment(text, drop_stopwords=False)
-        pos = sum(1 for t in toks if t in _POS)
-        neg = sum(1 for t in toks if t in _NEG)
+        joined = "".join(toks)
+        pos = sum(1 for w in _POS if w in text or w in joined)
+        neg = sum(1 for w in _NEG if w in text or w in joined)
         total = pos + neg
         if total == 0:
-            return Emotion(0.0, "neutral", 0.0, self.name + ":builtin")
-        polarity = (pos - neg) / total
-        confidence = min(1.0, total / 5.0)
-        return Emotion(round(polarity, 4), _label_for(polarity), round(confidence, 4), self.name + ":builtin")
+            return None
+        polarity = round((pos - neg) / total, 4)
+        confidence = round(min(1.0, total / 3.0), 4)
+        return Emotion(polarity, _label_for(polarity), confidence, self.name)
 
 
 # --- model backend ---------------------------------------------------------
 
 
-class ModelEmotion:
+class ModelEmotion(_LoopMany):
     """On-device transformer classifier. Lazy-loaded; opt-in."""
 
     name = "model"
@@ -138,41 +201,121 @@ class ModelEmotion:
         return Emotion(polarity, _label_for(polarity), round(conf, 4), self.name)
 
 
-# --- llm backend -----------------------------------------------------------
+# --- llm backend (batched + cached) ----------------------------------------
+
+_LLM_PROMPT = (
+    "你是情绪标注器。对下面 JSON 数组里的每段中文文本，判断说话者情绪极性，"
+    "输出一个等长 JSON 数组，每项是 -1.0(极负) 到 1.0(极正) 的浮点数，只输出 JSON 数组本身。\n"
+)
 
 
-class LLMEmotion:
-    """Defers scoring to an external command (the agent/LLM).
+class LLMEmotion(_LoopMany):
+    """Score via an external LLM command. Batched and cached for token thrift.
 
-    The command receives the text on stdin and must print a float polarity in
-    [-1, 1] on stdout. Used sparingly — for nuance the cheap backends miss.
+    Command contract: receives a JSON array of strings on stdin, prints a
+    JSON array of polarities (floats in [-1, 1]) of equal length on stdout.
+    A single-float stdout is also accepted (single-text convenience).
     """
 
     name = "llm"
 
-    def __init__(self, command: str) -> None:
+    def __init__(self, command: str, cache: _Cache | None = None) -> None:
         self._command = command
+        self._cache = cache or _Cache(None)
 
     def score(self, text: str) -> Emotion:
-        text = (text or "").strip()
-        if not text or not self._command:
-            return Emotion(0.0, "neutral", 0.0, self.name)
+        return self.score_many([text])[0]
+
+    def score_many(self, texts: list[str]) -> list[Emotion]:
+        results: list[Emotion | None] = [None] * len(texts)
+        ask: list[str] = []
+        ask_idx: list[int] = []
+
+        for i, t in enumerate(texts):
+            t = (t or "").strip()
+            if not t:
+                results[i] = Emotion(0.0, "neutral", 0.0, self.name)
+                continue
+            cached = self._cache.get(t)
+            if cached is not None:
+                pol, conf = cached
+                results[i] = Emotion(pol, _label_for(pol), conf, self.name + ":cache")
+            else:
+                ask.append(t)
+                ask_idx.append(i)
+
+        if ask and self._command:
+            polarities = self._call(ask)
+            for j, pol in enumerate(polarities):
+                pol = max(-1.0, min(1.0, float(pol)))
+                t = ask[j]
+                self._cache.put(t, round(pol, 4), abs(round(pol, 4)))
+                results[ask_idx[j]] = Emotion(round(pol, 4), _label_for(pol), abs(pol), self.name)
+            self._cache.flush()
+
+        # Anything still unscored (no command configured / call failed) → neutral.
+        return [r or Emotion(0.0, "neutral", 0.0, self.name + ":nocmd") for r in results]
+
+    def _call(self, texts: list[str]) -> list[float]:
+        payload = json.dumps(texts, ensure_ascii=False)
         try:
             out = subprocess.run(
-                self._command, shell=True, input=text, capture_output=True,
-                text=True, timeout=30,
+                self._command, shell=True, input=_LLM_PROMPT + payload,
+                capture_output=True, text=True, timeout=120,
             ).stdout.strip()
-            polarity = max(-1.0, min(1.0, float(out)))
+            parsed = json.loads(out[out.find("[") : out.rfind("]") + 1]) if "[" in out else [float(out)]
+            if len(parsed) != len(texts):
+                return [0.0] * len(texts)
+            return [float(x) for x in parsed]
         except Exception:
-            return Emotion(0.0, "neutral", 0.0, self.name + ":error")
-        return Emotion(round(polarity, 4), _label_for(polarity), abs(polarity), self.name)
+            return [0.0] * len(texts)
 
 
-def get_emotion_backend(config: Config) -> EmotionBackend:
-    """Factory: build the configured backend, with a safe lexicon fallback."""
+# --- hybrid backend (lexicon, escalate only the uncertain to the LLM) ------
+
+
+class HybridEmotion:
+    """Cheap lexicon for the obvious; LLM only for the uncertain. Token-smart."""
+
+    name = "hybrid"
+
+    def __init__(self, primary: EmotionBackend, escalate: EmotionBackend, threshold: float) -> None:
+        self._primary = primary
+        self._escalate = escalate
+        self._threshold = threshold
+
+    def score(self, text: str) -> Emotion:
+        return self.score_many([text])[0]
+
+    def score_many(self, texts: list[str]) -> list[Emotion]:
+        base = self._primary.score_many(texts)
+        uncertain_idx = [i for i, e in enumerate(base) if e.confidence < self._threshold and (texts[i] or "").strip()]
+        if not uncertain_idx:
+            return [Emotion(e.polarity, e.label, e.confidence, "hybrid:" + e.backend) for e in base]
+        escalated = self._escalate.score_many([texts[i] for i in uncertain_idx])
+        out = list(base)
+        for k, i in enumerate(uncertain_idx):
+            e = escalated[k]
+            out[i] = Emotion(e.polarity, e.label, e.confidence, "hybrid:" + e.backend)
+        return [e if e.backend.startswith("hybrid:") else Emotion(e.polarity, e.label, e.confidence, "hybrid:" + e.backend) for e in out]
+
+
+def get_emotion_backend(config: Config, cache_path: Path | None = None) -> EmotionBackend:
+    """Factory: build the configured backend.
+
+    ``cache_path`` (typically ``soul/.index/emotion_cache.json``) enables the
+    persistent LLM score cache. Lexicon/model don't need it.
+    """
+    cache = _Cache(cache_path) if (cache_path and config.emotion_cache) else _Cache(None)
+
+    def _llm() -> LLMEmotion:
+        return LLMEmotion(config.emotion_llm_command, cache)
+
     choice = config.emotion_backend
     if choice == "model":
         return ModelEmotion(config.emotion_model)
     if choice == "llm":
-        return LLMEmotion(config.emotion_llm_command)
+        return _llm()
+    if choice == "hybrid":
+        return HybridEmotion(LexiconEmotion(use_snownlp=False), _llm(), config.emotion_escalate_threshold)
     return LexiconEmotion()
