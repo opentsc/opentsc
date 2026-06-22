@@ -1,0 +1,2 @@
+# OpenTSC TUI demo dependency (UI only — opentsc_core needs nothing extra)
+textual>=8.0
