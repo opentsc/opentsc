@@ -55,9 +55,20 @@ python skill/scripts/opentsc.py --root my-vault index-search "谁靠谱" --kind 
 
 ## 快速开始
 
-1. 把 `skill/` 放进你的项目当 `.claude/skills/opentsc/`，或直接调 `skill/scripts/opentsc.py`。
-2. （可选）`pip install jieba snownlp zvec`，把 `skill/templates/_config.yaml` 复制到 `<vault>/soul/_config.yaml` 开启记忆引擎。
-3. 看[使用说明](docs/usage.md)。从 v1.0 升级？看 [MIGRATION.md](MIGRATION.md)——你的数据一个字都不用改。
+> **zvec 索引需 Python 3.10–3.14**（核心本身裸 Python 即可跑）。macOS 自带 Python 是 3.9、或遇到 `externally-managed-environment`(PEP 668),请用 **uv**——完整步骤见 **[INSTALL.md](INSTALL.md)**。
+
+```bash
+# 1. 作为 skill 安装 —— 仓库的 skill/ 子目录才是 skill,不是仓库根目录
+git clone https://github.com/opentsc/opentsc
+cp -r opentsc/skill ~/.claude/skills/opentsc        # 或 ~/.hermes/skills/opentsc
+
+# 2.(可选)开启记忆引擎 —— 推荐 Tier-1 后端
+uv venv ~/.venvs/opentsc --python 3.11 && source ~/.venvs/opentsc/bin/activate
+uv pip install jieba snownlp zvec
+cp opentsc/skill/templates/_config.yaml <你的vault>/soul/_config.yaml
+```
+
+然后看[使用说明](docs/usage.md) · 安装细节见 [INSTALL.md](INSTALL.md) · 从 v1.0 升级看 [MIGRATION.md](MIGRATION.md)(数据不用改)。
 
 ## 背后更大的想法
 

@@ -5,6 +5,23 @@
 
 ---
 
+## [2.1.1] — 2026-06-25
+
+> **主题:新手安装体验修复**(来自一份 macOS 新手安装反馈的 7 个踩坑)。
+
+### 新增 Added
+- **`INSTALL.md`**:Python 3.10–3.14 要求置顶;**uv 一键安装**(绕过 PEP 668 / macOS 3.9 死锁);后端分三档(core / Tier-1 / 本地模型 / 模型情绪);"skill/ 子目录才是 skill"的安装说明;常见报错对照表。
+- README(中/英)加"安装要求 + uv 快速开始 + skill 子目录"段,链到 INSTALL.md。
+- `requirements.txt` 置顶标注 **`python_requires = >=3.10,<3.15`**(zvec 无 3.9 wheel)。
+- CI 新增 **version-sync** 检查:SKILL.md 版本必须与 CHANGELOG 最新条目一致。
+
+### 修复 Fixed
+- **`--root` 现在可放在子命令前或后**——`opentsc index-build --root .` 不再报 `unrecognized arguments`。
+- **`emotion-score` 支持一次多条**(`nargs='+'`),走 score_many(批量+缓存),返回数组。
+- SKILL.md frontmatter/标题版本号同步到 v2.1(此前残留 v2.0/v1.0)。
+
+---
+
 ## [2.1.0] — 2026-06-21
 
 > **主题：LLM 情绪后端 + token 节流，外加修正默认情绪的反向误判。**

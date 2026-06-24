@@ -635,7 +635,13 @@ def cmd_emotion_score(args):
     from opentsc_core.emotion import get_emotion_backend
     from opentsc_core.config import Config
     root = Path(args.root).resolve()
-    ok(json.dumps(get_emotion_backend(Config.load(root)).score(args.text).as_dict(), ensure_ascii=False, indent=2))
+    backend = get_emotion_backend(Config.load(root))
+    texts = args.text if isinstance(args.text, list) else [args.text]
+    results = backend.score_many(texts)
+    if len(results) == 1:
+        ok(json.dumps(results[0].as_dict(), ensure_ascii=False, indent=2))
+    else:
+        ok(json.dumps([{"text": t, **e.as_dict()} for t, e in zip(texts, results)], ensure_ascii=False, indent=2))
 
 
 def cmd_text_segment(args):
@@ -778,16 +784,43 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("identity-resolve"); p.add_argument("name"); p.add_argument("--topk", type=int, default=5); p.add_argument("--json", action="store_true"); p.set_defaults(func=cmd_identity_resolve)
     sub.add_parser("index-stats").set_defaults(func=cmd_index_stats)
     p = sub.add_parser("index-mood"); p.add_argument("--positive", action="store_true"); p.add_argument("--limit", type=int, default=20); p.add_argument("--json", action="store_true"); p.set_defaults(func=cmd_index_mood)
-    p = sub.add_parser("emotion-score"); p.add_argument("text"); p.set_defaults(func=cmd_emotion_score)
+    p = sub.add_parser("emotion-score"); p.add_argument("text", nargs="+", help="one or more texts to score (batched + cached)"); p.set_defaults(func=cmd_emotion_score)
     p = sub.add_parser("text-segment"); p.add_argument("text"); p.add_argument("--keywords", action="store_true"); p.add_argument("--topk", type=int, default=8); p.set_defaults(func=cmd_text_segment)
     sub.add_parser("config-show").set_defaults(func=cmd_config_show)
     p = sub.add_parser("actions-stale"); p.add_argument("--days", type=int, default=30); p.add_argument("--status", default="active"); p.add_argument("--json", action="store_true"); p.set_defaults(func=cmd_actions_stale)
     return parser
 
 
+def _hoist_root(argv: list[str]) -> list[str]:
+    """Allow --root to appear anywhere (before OR after the subcommand).
+
+    argparse only accepts the global --root before the subcommand; new users
+    naturally write `opentsc index-build --root .`. We extract --root from
+    wherever it is and put it back up front so both orderings work.
+    """
+    root = None
+    cleaned: list[str] = []
+    i = 0
+    while i < len(argv):
+        a = argv[i]
+        if a == "--root" and i + 1 < len(argv):
+            root = argv[i + 1]
+            i += 2
+            continue
+        if a.startswith("--root="):
+            root = a.split("=", 1)[1]
+            i += 1
+            continue
+        cleaned.append(a)
+        i += 1
+    return (["--root", root] + cleaned) if root is not None else cleaned
+
+
 def main(argv: list[str] | None = None) -> None:
+    import sys as _sys
+    raw = list(_sys.argv[1:]) if argv is None else list(argv)
     parser = build_parser()
-    args = parser.parse_args(argv)
+    args = parser.parse_args(_hoist_root(raw))
     try:
         args.func(args)
     except Exception as exc:

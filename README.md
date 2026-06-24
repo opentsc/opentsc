@@ -55,9 +55,22 @@ Optional power-ups (all opt-in — the core runs with zero extra installs): Chin
 
 ## Quick start
 
-1. Drop `skill/` into your project as `.claude/skills/opentsc/`, or call `skill/scripts/opentsc.py` directly.
-2. (Optional) `pip install jieba snownlp zvec` and copy `skill/templates/_config.yaml` to `<vault>/soul/_config.yaml` to turn on the memory engine.
-3. Read the [usage guide](docs/usage.md). Upgrading from v1.0? See [MIGRATION.md](MIGRATION.md) — your data needs no changes.
+> **Requires Python 3.10–3.14** for the optional `zvec` index (the core itself
+> runs on bare Python). On macOS (system Python is 3.9) or if you hit
+> `externally-managed-environment`, use **uv** — full guide in **[INSTALL.md](INSTALL.md)**.
+
+```bash
+# 1. install as a skill — the repo's skill/ subdir IS the skill, not the repo root
+git clone https://github.com/opentsc/opentsc
+cp -r opentsc/skill ~/.claude/skills/opentsc        # or ~/.hermes/skills/opentsc
+
+# 2. (optional) turn on the memory engine — recommended Tier-1 backends
+uv venv ~/.venvs/opentsc --python 3.11 && source ~/.venvs/opentsc/bin/activate
+uv pip install jieba snownlp zvec
+cp opentsc/skill/templates/_config.yaml <your-vault>/soul/_config.yaml
+```
+
+Then read the [usage guide](docs/usage.md) · install details in [INSTALL.md](INSTALL.md) · upgrading from v1.0? [MIGRATION.md](MIGRATION.md) (your data needs no changes).
 
 ## The bigger idea
 

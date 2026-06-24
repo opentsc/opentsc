@@ -1,9 +1,9 @@
 ---
 name: opentsc
-description: "OpenTSC v2.0: Soul/Shell architecture for interpersonal intelligence. Local, offline-first, with event graphs, judgment engine (K7), self-creation (K8), three-layer attributes, calibrated predictions, 11 VSM professions, and a pluggable zvec memory index (semantic search, identity resolution, jieba segmentation, emotion scoring) that runs with zero extra deps. Transforms implicit social judgment into explicit, queryable, auditable, evolving intelligence."
+description: "OpenTSC v2.1: Soul/Shell architecture for interpersonal intelligence. Local, offline-first, with event graphs, judgment engine (K7), self-creation (K8), three-layer attributes, calibrated predictions, 11 VSM professions, and a pluggable zvec memory index (semantic search, identity resolution, jieba segmentation, emotion scoring incl. batched+cached LLM) that runs with zero extra deps. Transforms implicit social judgment into explicit, queryable, auditable, evolving intelligence."
 ---
 
-# OpenTSC v2.0 Skill — Soul/Shell Architecture
+# OpenTSC v2.1 Skill — Soul/Shell Architecture
 
 Use this skill when the user wants to design, build, review, or operate **OpenTSC**: a single-user, local/offline-first interpersonal intelligence system derived from the TSC doctrine.
 

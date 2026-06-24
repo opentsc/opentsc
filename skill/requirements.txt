@@ -1,5 +1,11 @@
 # OpenTSC optional dependencies.
 #
+# ┌───────────────────────────────────────────────────────────────────┐
+# │ REQUIRES PYTHON 3.10–3.14.  zvec ships NO wheels for 3.9 or older   │
+# │ (macOS system Python is 3.9 — use uv or a venv, see INSTALL.md).    │
+# └───────────────────────────────────────────────────────────────────┘
+# python_requires = >=3.10,<3.15
+#
 # The core runs on a bare Python 3.10+ install with ZERO of these — the
 # `lite` embedding and `lexicon` (built-in) emotion backends, plus the regex
 # segmenter, are always available. Install the extras only for the backend you

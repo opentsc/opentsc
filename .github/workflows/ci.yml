@@ -39,3 +39,20 @@ jobs:
             exit 1
           fi
           echo "No private instance data found."
+
+  version-sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: SKILL.md version must match the latest CHANGELOG entry
+        run: |
+          # major.minor from "# OpenTSC vX.Y Skill" in SKILL.md
+          skill=$(grep -oE 'OpenTSC v[0-9]+\.[0-9]+' skill/SKILL.md | head -1 | grep -oE '[0-9]+\.[0-9]+')
+          # major.minor from the first "## [X.Y.Z]" in CHANGELOG.md
+          chg=$(grep -oE '^\## \[[0-9]+\.[0-9]+' CHANGELOG.md | head -1 | grep -oE '[0-9]+\.[0-9]+')
+          echo "SKILL.md=$skill  CHANGELOG=$chg"
+          if [ "$skill" != "$chg" ]; then
+            echo "::error::SKILL.md ($skill) is out of sync with CHANGELOG ($chg). Bump SKILL.md frontmatter + heading."
+            exit 1
+          fi
+          echo "Version in sync: v$skill"
